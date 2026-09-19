@@ -31,7 +31,6 @@ export type {
   AssertionHandle,
   AssertionResult,
   AssertionSeverity,
-  AutoevalsJudges,
   EveEvalActionStatus,
   EveEvalAssertions,
   EveEvalContext,
@@ -61,6 +60,9 @@ export type {
   EveEvalStreamEvent,
   EveEvalWaitForEventOptions,
   EveEvalVerdict,
+  JudgeBatch,
+  JudgeInput,
+  JudgeQuestion,
   JudgeContext,
   JudgeOpts,
 } from "#evals/types.js";

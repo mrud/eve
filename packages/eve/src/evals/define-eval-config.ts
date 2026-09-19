@@ -5,14 +5,14 @@ import type { EveEvalConfig, EveEvalConfigInput, EveEvalSetupResult } from "#eva
  * default export of `evals.config.ts` at the root of the `evals/` directory.
  *
  * Exactly one `evals.config.ts` is required. It supplies the optional default
- * `judge` model for `t.judge.*` assertions (so individual evals need not
+ * `judge` model for `t.judge(...)` assertions (so individual evals need not
  * repeat it), run-level `reporters`, `maxConcurrency` and `timeoutMs` defaults,
- * and optional run-wide `setup` and `teardown`. CLI flags (`--max-concurrency`, `--timeout`)
- * and per-eval values take precedence over the config defaults.
+ * and optional run-wide `setup` and `teardown`. CLI flags (`--max-concurrency`,
+ * `--timeout`) and per-eval values take precedence over the config defaults.
  *
- * Throws on invalid input: a `judge` without a `model`, a non-positive or
- * non-integer `maxConcurrency`, a negative or non-finite `timeoutMs`, a
- * non-array `reporters`, or a non-function `setup` or `teardown`.
+ * Throws on invalid input: a non-positive or non-integer `maxConcurrency`,
+ * a negative or non-finite `timeoutMs`, non-array `reporters`, or a
+ * non-function `setup` or `teardown`.
  */
 export function defineEvalConfig<TResult extends void | EveEvalSetupResult = void>(
   input: EveEvalConfigInput<TResult>,
@@ -32,16 +32,6 @@ function validateEvalConfigInput(input: EveEvalConfigInput): void {
 
   if (input.teardown !== undefined && typeof input.teardown !== "function") {
     throw new Error("Eval config `teardown` must be a function.");
-  }
-
-  if (
-    input.judge !== undefined &&
-    (input.judge.model === undefined || input.judge.model === null)
-  ) {
-    throw new Error(
-      "Eval config `judge` requires a `model`. It is the default judge model for `t.judge.*` " +
-        "assertions across every eval.",
-    );
   }
 
   if (

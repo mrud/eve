@@ -35,9 +35,8 @@ function infoWithRouting(
 }
 
 describe("BOOT_DETECTIONS", () => {
-  it("keeps an unavailable runtime diagnostic-only", async () => {
-    const issues = await detectSetupIssues(context());
-    expect(issues).toEqual([{ kind: "attention", label: "connect a model", command: "/login" }]);
+  it("defers model diagnosis while runtime info is unavailable", async () => {
+    expect(await detectSetupIssues(context())).toEqual([]);
   });
 
   it("diagnoses a disconnected gateway", async () => {
@@ -92,9 +91,7 @@ describe("BOOT_DETECTIONS", () => {
     ["AI_GATEWAY_API_KEY", "key"],
     ["VERCEL_OIDC_TOKEN", "token"],
   ])("does not infer AI Gateway routing from a local credential alone", async (key, value) => {
-    const issues = await detectSetupIssues(context({ env: { [key]: value } }));
-
-    expect(issues).toEqual([{ kind: "attention", label: "connect a model", command: "/login" }]);
+    expect(await detectSetupIssues(context({ env: { [key]: value } }))).toEqual([]);
   });
 
   it("stays quiet for an external-provider model — gateway linking/credentials don't apply", async () => {
@@ -103,14 +100,36 @@ describe("BOOT_DETECTIONS", () => {
     expect(await detectSetupIssues(context({ info }))).toEqual([]);
   });
 
-  it("stays quiet when the runtime resolved linked-project OIDC", async () => {
-    const info = infoWithRouting(
-      { kind: "gateway", target: "openai" },
-      { kind: "gateway", connected: true, credential: "oidc" },
-    );
+  it.each([{}, { EVE_MODEL_CONNECTION: "vercel" }, { AI_GATEWAY_API_KEY: "key" }])(
+    "does not diagnose dynamic routing as a missing connection",
+    async (env) => {
+      const info = infoWithRouting({
+        kind: "dynamic",
+        resolver: {
+          eventNames: ["step.started"],
+          slug: "model",
+          logicalPath: "agent.ts",
+          owner: { kind: "application" },
+          sourceId: "agent-model",
+          sourceKind: "module",
+        },
+      });
+      expect(await detectSetupIssues(context({ env, info }))).toEqual([]);
+      expect(normalizeLocalModelEndpoint(info, env)).toBe(info);
+    },
+  );
 
-    expect(await detectSetupIssues(context({ info }))).toEqual([]);
-  });
+  it.each(["oidc", "oauth"] as const)(
+    "stays quiet when the runtime reports a connected %s endpoint",
+    async (credential) => {
+      const info = infoWithRouting(
+        { kind: "gateway", target: "openai" },
+        { kind: "gateway", connected: true, credential },
+      );
+
+      expect(await detectSetupIssues(context({ info }))).toEqual([]);
+    },
+  );
 
   it("skips a throwing detection instead of failing the boot", async () => {
     const info = infoWithRouting({ kind: "gateway", target: "openai" });

@@ -36,6 +36,7 @@ export interface BootDetection {
 
 type ModelProviderAccess =
   | { kind: "unknown" }
+  | { kind: "dynamic" }
   | { kind: "external" }
   | {
       kind: "gateway";
@@ -95,6 +96,7 @@ function modelProviderAccess(
   context: Pick<BootDetectionContext, "env" | "info">,
 ): ModelProviderAccess {
   const model = context.info?.agent.model;
+  if (model?.routing?.kind === "dynamic") return { kind: "dynamic" };
   if (model?.routing?.kind === "external") return { kind: "external" };
   if (model?.routing?.kind !== "gateway") return { kind: "unknown" };
 
@@ -144,26 +146,20 @@ const modelProvider: BootDetection = {
   async detect({ appRoot, env, info }) {
     const access = modelProviderAccess({ env, info });
 
-    if (access.kind === "external") return [];
-    if (access.kind === "gateway") {
-      if (access.runtime.status === "connected") return [];
-      if (access.runtime.status === "disconnected") {
-        const linked = await pathExists(join(appRoot, ".vercel", "project.json"));
-        return [
-          {
-            kind: "attention",
-            label: linked ? "AI Gateway credentials missing" : "connect a model",
-            command: "/login",
-          },
-        ];
-      }
-    }
+    // Dynamic selectors can return any provider; their credentials cannot be
+    // diagnosed until a model is selected at runtime.
+    if (access.kind === "external" || access.kind === "dynamic") return [];
+    if (access.kind !== "gateway" || access.runtime.status === "unknown") return [];
+    if (access.runtime.status === "connected") return [];
 
     const linked = await pathExists(join(appRoot, ".vercel", "project.json"));
-    if (linked) {
-      return [{ kind: "attention", label: "AI Gateway credentials missing", command: "/login" }];
-    }
-    return [{ kind: "attention", label: "connect a model", command: "/login" }];
+    return [
+      {
+        kind: "attention",
+        label: linked ? "AI Gateway credentials missing" : "connect a model",
+        command: "/login",
+      },
+    ];
   },
 };
 

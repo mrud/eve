@@ -302,8 +302,6 @@ export type AgentHeaderOptions = {
   name: string;
   serverUrl: string;
   info?: AgentInfoResult;
-  /** Message-of-the-day line below the startup card (local sessions only). */
-  tip?: string;
 };
 
 type DisplayModes = {
@@ -414,7 +412,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
   #startupEditor?: LineState;
   #startupConsumer?: (key: TerminalKey) => void;
   #startupStartedAt = 0;
-  #startupHeader?: { readonly name: string; readonly tip: string };
+  #startupHeader?: { readonly name: string };
   #agentHeaderRendered = false;
   /** The last committed header body, to skip re-committing an unchanged banner. */
   #agentHeaderBody?: string;
@@ -550,6 +548,8 @@ export class TerminalRenderer implements AgentTUIRenderer {
   #setupFlow?: SetupFlowState;
   /** The clearable setup attention line (`⚠ … · /deploy`), rendered in the live footer. */
   #setupAttention?: string;
+  #resolvedModelId?: string;
+  #modelTurnId?: string;
   /**
    * The pinned todo panel above the input, replaced wholesale by each `todo`
    * tool-call input. Cleared (and committed to the transcript) once every
@@ -669,6 +669,12 @@ export class TerminalRenderer implements AgentTUIRenderer {
   renderAgentHeader(options: AgentHeaderOptions): void {
     this.#startupHeader = undefined;
     this.#title = options.name;
+    if (
+      this.#agentHeader?.info?.agent.model.routing.kind !== "dynamic" ||
+      options.info?.agent.model.routing.kind !== "dynamic"
+    ) {
+      this.#resolvedModelId = undefined;
+    }
     this.#agentHeader = options;
     this.#start();
     const body = this.#renderAgentHeaderRows().join("\n");
@@ -687,12 +693,12 @@ export class TerminalRenderer implements AgentTUIRenderer {
     this.#live.flush(this.#renderAgentHeaderRows(), this.#footerRows(this.#width()));
   }
 
-  beginStartupDraft(options: { initialDraft?: string; tip: string; title: string }): void {
+  beginStartupDraft(options: { initialDraft?: string; title: string }): void {
     this.#start({ title: options.title });
     this.#inputActive = true;
     this.#promptPlaceholderActive = true;
     this.#startupPhase = "starting";
-    this.#startupHeader = { name: options.title, tip: options.tip };
+    this.#startupHeader = { name: options.title };
     this.#startupStartedAt = Date.now();
     let editor = lineOf(stripPromptControlCharacters(options.initialDraft ?? ""));
     this.#startupEditor = editor;
@@ -757,7 +763,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
 
   async readPrompt(options?: AgentTUISessionOptions): Promise<string> {
     this.#start(options);
-    this.#stopTicker();
+    this.#syncBackgroundActivityTicker();
     this.#commitTurnStats();
     this.#inputActive = true;
     this.#promptPlaceholderActive = true;
@@ -1042,11 +1048,11 @@ export class TerminalRenderer implements AgentTUIRenderer {
       this.#requestTurnCancel = undefined;
       this.#sendSteering = undefined;
       this.#detachInput();
-      this.#stopTicker();
       this.#streamDraftActive = false;
       if (this.#turnIndicator.kind === "waiting") {
         this.#turnIndicator = { kind: "idle" };
       }
+      this.#syncBackgroundActivityTicker();
       this.#status = completedTurnStatus({
         interrupted: this.#interrupted,
         cancelled: this.#turnCancelled,
@@ -1060,6 +1066,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
       // prefix wedged and freeze scrollback for the rest of the session.
       if (this.#interrupted || turnState.cancelled) this.#settleCurrentTurnToolBlocks(turnState);
       this.#finalizeAllBlocks();
+      this.#syncBackgroundActivityTicker();
       this.#diagnostics?.reportStats();
       this.#paint();
 
@@ -1109,6 +1116,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
       this.#sweepPreparingToolBlocks(turnState);
       if (turnState.cancelled) this.#settleCurrentTurnToolBlocks(turnState);
       this.#finalizeAllBlocks();
+      this.#syncBackgroundActivityTicker();
       this.#diagnostics?.reportStats();
       this.#paint();
     }
@@ -1616,6 +1624,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
     const wasBackground = this.#backgroundSubagentCallIds.has(update.callId);
     this.#backgroundSubagentCallIds.add(update.callId);
     if (!wasBackground) this.#moveSubagentCohortToBackgroundTail(update.callId);
+    this.#syncBackgroundActivityTicker();
     this.#paint();
   }
 
@@ -1640,6 +1649,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
         if (block.subagentCallId === update.callId) block.live = true;
       }
     }
+    this.#syncBackgroundActivityTicker();
     this.#paint();
   }
 
@@ -1763,6 +1773,8 @@ export class TerminalRenderer implements AgentTUIRenderer {
    * not count across a cut), tool-call ownership maps, and the turn clock.
    */
   #clearConversationState(): void {
+    this.#resolvedModelId = undefined;
+    this.#modelTurnId = undefined;
     this.#childToolCallIds.clear();
     this.#parentToolBlockIds.clear();
     this.#subagentHeaders.clear();
@@ -1775,6 +1787,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
     this.#nextSubmittedPromptOrigin = undefined;
     this.#fileContents.clear();
     this.#turnClock.reset();
+    this.#syncBackgroundActivityTicker();
   }
 
   /**
@@ -2890,7 +2903,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
     this.#flowInterrupt = undefined;
     this.#disarmFlowIdleTrap();
     this.#detachInput();
-    this.#stopTicker();
+    this.#clearTicker();
     this.#live.clear();
     this.#removeLogCapture();
     this.#altScreen.enter({ cursor: "visible", mouse: false });
@@ -2911,6 +2924,8 @@ export class TerminalRenderer implements AgentTUIRenderer {
       if (this.#setupFlow !== undefined) {
         this.#startTicker();
         this.#armFlowIdleTrap();
+      } else {
+        this.#syncBackgroundActivityTicker();
       }
       this.#live.reset();
       this.#paint();
@@ -3077,7 +3092,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
     rejectReader?.(interruptedError());
     this.#detachInput();
     this.#stopCaretBlink();
-    this.#stopTicker();
+    this.#clearTicker();
     if (this.#logLevelHintTimer !== undefined) {
       clearTimeout(this.#logLevelHintTimer);
       this.#logLevelHintTimer = undefined;
@@ -3349,7 +3364,7 @@ export class TerminalRenderer implements AgentTUIRenderer {
   }
 
   #startTicker() {
-    this.#stopTicker();
+    this.#clearTicker();
     this.#tickTimer = setInterval(() => {
       this.#spinnerIndex += 1;
       this.#paint();
@@ -3365,9 +3380,33 @@ export class TerminalRenderer implements AgentTUIRenderer {
   }
 
   #stopTicker() {
+    if (this.#hasLiveBackgroundActivity()) return;
+    this.#clearTicker();
+  }
+
+  #clearTicker() {
     if (this.#tickTimer) {
       clearInterval(this.#tickTimer);
       this.#tickTimer = undefined;
+    }
+  }
+
+  #hasLiveBackgroundActivity(): boolean {
+    return this.#blocks.some(
+      (block) =>
+        block.live &&
+        block.subagentCallId !== undefined &&
+        (this.#backgroundSubagentCallIds.has(block.subagentCallId) ||
+          this.#provisionalSubagentCallIds.has(block.subagentCallId)),
+    );
+  }
+
+  /** Keeps mutable subagent sections visibly active after their parent turn settles. */
+  #syncBackgroundActivityTicker(): void {
+    if (this.#hasLiveBackgroundActivity()) {
+      this.#startTicker();
+    } else if (!this.#streamDraftActive && this.#turnIndicator.kind === "idle") {
+      this.#clearTicker();
     }
   }
 
@@ -3597,6 +3636,23 @@ export class TerminalRenderer implements AgentTUIRenderer {
     turnState: RenderTurnState,
   ): void {
     switch (event.type) {
+      case "turn-start":
+        if (event.turnId !== this.#modelTurnId) {
+          this.#modelTurnId = event.turnId;
+          this.#resolvedModelId = undefined;
+          this.#paint();
+        }
+        break;
+
+      case "step-start":
+        this.#resolvedModelId =
+          typeof event.modelId === "string"
+            ? stripTerminalControls(event.modelId.slice(0, 256)).replace(/\s+/gu, " ").trim() ||
+              undefined
+            : undefined;
+        this.#paint();
+        break;
+
       case "step-finish":
         // Step usage reports are per-step deltas (extractStepUsage in the
         // harness), so summing them yields true session totals. The
@@ -4179,8 +4235,6 @@ export class TerminalRenderer implements AgentTUIRenderer {
       width: this.#width(),
     };
     if (header?.info !== undefined) input.info = header.info;
-    const tip = header?.tip ?? startup?.tip;
-    if (tip !== undefined) input.tip = tip;
     return buildAgentHeader(input);
   }
 
@@ -4533,7 +4587,12 @@ export class TerminalRenderer implements AgentTUIRenderer {
     }
     if (this.#logLevelHintActive) input.logLevel = this.#logs;
     const agentModel = this.#agentHeader?.info?.agent.model;
-    if (agentModel?.id !== undefined) input.model = agentModel.id;
+    if (agentModel?.routing.kind === "dynamic") {
+      input.model =
+        this.#resolvedModelId === undefined
+          ? "dynamic model"
+          : `dynamic model · ${this.#resolvedModelId}`;
+    } else if (agentModel?.id !== undefined) input.model = agentModel.id;
     // "provider-default" is the absent-setting sentinel, not a level worth showing.
     if (agentModel?.reasoning !== undefined && agentModel.reasoning !== "provider-default") {
       input.reasoning = agentModel.reasoning;
