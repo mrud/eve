@@ -1,7 +1,8 @@
 import { e2eJudgeModel } from "@eve-e2e/config";
 import { defineEvalConfig } from "eve/evals";
 
-class SetupResource {
+/** Resource shared by setup, evals, and teardown. */
+export class SetupResource {
   #closed = false;
 
   read() {
