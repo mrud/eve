@@ -1,9 +1,28 @@
 import { e2eJudgeModel } from "@eve-e2e/config";
 import { defineEvalConfig } from "eve/evals";
 
+class SetupResource {
+  #closed = false;
+
+  read() {
+    if (this.#closed) throw new Error("Eval setup resource is closed.");
+    return "ready";
+  }
+
+  close() {
+    this.#closed = true;
+  }
+}
+
 export default defineEvalConfig({
   judge: { model: e2eJudgeModel() },
   setup() {
-    return { env: { EVE_E2E_SETUP_READY: "1" } };
+    return {
+      env: { EVE_E2E_SETUP_READY: "1" },
+      context: { resource: new SetupResource() },
+    };
+  },
+  teardown(context) {
+    context?.resource.close();
   },
 });

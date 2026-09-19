@@ -2,4 +2,4 @@
 "eve": patch
 ---
 
-Add `setup` to eval configuration for initializing shared resources before the local agent starts. Return environment overrides and a teardown function to keep resources alive through server shutdown and clean them up even on failed runs.
+Add eval setup and teardown callbacks with typed context shared by reference across evals and cleanup. Setup can supply environment overrides before the local agent starts, and teardown runs after shutdown even when setup or the run fails.

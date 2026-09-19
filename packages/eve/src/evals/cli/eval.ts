@@ -24,7 +24,7 @@ import { Console } from "#evals/runner/reporters/console.js";
 import { JUnit } from "#evals/runner/reporters/junit.js";
 import type { EvalReporter } from "#evals/runner/reporters/types.js";
 import { resolveEvalTargetHandle } from "#evals/target.js";
-import type { EveEval, EveEvalSetupResult, EveEvalTargetHandle } from "#evals/types.js";
+import type { EveEval, EveEvalTargetHandle } from "#evals/types.js";
 
 /** Parsed Commander options accepted by {@link runEvalCommand}. */
 export interface EvalCliOptions {
@@ -133,10 +133,11 @@ export async function runEvalCommand(
   let devServer: DevelopmentServer | undefined;
   let target: EveEvalTargetHandle;
   let client: Awaited<ReturnType<typeof createEvalClient>>;
-  let setupResult: EveEvalSetupResult | void;
+  let setupContext: unknown;
 
   try {
-    setupResult = await config.setup?.();
+    const setupResult = await config.setup?.();
+    setupContext = setupResult?.context;
     if (setupResult?.env) {
       overrideDevelopmentEnvironment(appRoot, setupResult.env);
     }
@@ -176,6 +177,7 @@ export async function runEvalCommand(
     const summary = await runEvals({
       evaluations,
       config,
+      setupContext,
       target,
       client,
       appRoot,
@@ -205,7 +207,7 @@ export async function runEvalCommand(
     for (const cleanup of [
       () => devServer?.close(),
       () => devServer && shutdownActiveSandboxHandles({ log: (message) => logger.error(message) }),
-      () => setupResult?.teardown?.(),
+      () => config.teardown?.(setupContext),
     ]) {
       try {
         await cleanup();

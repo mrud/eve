@@ -19,6 +19,7 @@ import type {
  * AssertionCollector.finalize} it against the completed task result.
  */
 export function createEvalContext(deps: {
+  readonly setupContext?: unknown;
   readonly manager: EvalSessionManager;
   readonly collector: AssertionCollector;
   readonly target: EveEvalTargetHandle;
@@ -75,6 +76,7 @@ export function createEvalContext(deps: {
     },
 
     // Run context.
+    context: deps.setupContext,
     signal: deps.signal,
     target: deps.target,
     get reply() {
