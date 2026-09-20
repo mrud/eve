@@ -927,6 +927,9 @@ describe("workflow tools", () => {
         for (let turn = 0; turn < 3 && request === undefined; turn += 1) {
           const woken = await stream.nextTurn();
           expect(filterEventsByType(woken, "turn.failed")).toHaveLength(0);
+          expect(
+            filterEventsByType(woken, "action.partial").map((event) => event.data.result.output),
+          ).toContain("awaiting approval");
           request = (
             filterEventsByType(woken, "input.requested")[0] as InputRequestedStreamEvent | undefined
           )?.data.requests[0];

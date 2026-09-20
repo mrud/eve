@@ -139,8 +139,9 @@ For background tools, `outputSchema` and `toModelOutput` describe the fixed rece
 return value is available through the completed task's output.
 
 The `TaskExec` argument and `task.postMessage` have been removed. Return the terminal result;
-background yields are consumed without publishing progress or retaining a task-progress stream. In a workflow body, keep values needed after a wait in local variables; workflow replay
-reconstructs them across durable waits.
+background yields publish `action.partial` snapshots to session-stream clients without waking the
+parent model or becoming task output. In a workflow body, keep values needed after a wait in local
+variables; workflow replay reconstructs them across durable waits.
 Use [`ctx.ask`](/docs/tools/workflows#ask-a-human-ctxask) when the body needs an answer from the human.
 Background tools are a normal execution mode and need no root-agent flag. Built-in, declared local,
 and remote subagents use this task lifecycle automatically.

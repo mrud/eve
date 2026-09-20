@@ -428,23 +428,22 @@ This pattern controls specialist selection, not whether the parent model delegat
 
 ## Report progress: `yield`
 
-A workflow body may be an async generator. In default execution, yields report progress.
-Background execution consumes yielded values without publishing them or retaining a task-progress
-stream. After processing a yield, eve advances the generator; use an awaited workflow operation
-when the body needs to suspend.
+A workflow body may be an async generator. Yields report progress in both execution modes.
+After processing a yield, eve advances the generator; use an awaited workflow operation when the
+body needs to suspend.
 
-| Operation       | Default execution                                                 | `execution: "background"`                                                         |
-| --------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `yield value`   | Emits an `action.partial` snapshot for the pending tool call.     | Consumes the value without publishing progress or requesting a parent-agent turn. |
-| `return value`  | Settles the tool call with its output.                            | Completes the task and contributes to its cohort's terminal report.               |
-| No return value | Uses the last yield as output, or `null` if there were no yields. | Completes with `null`; yielded progress is not the task output.                   |
+| Operation       | Default execution                                                 | `execution: "background"`                                                  |
+| --------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `yield value`   | Emits an `action.partial` snapshot for the pending tool call.     | Emits an `action.partial` snapshot without requesting a parent-agent turn. |
+| `return value`  | Settles the tool call with its output.                            | Completes the task and contributes to its cohort's terminal report.        |
+| No return value | Uses the last yield as output, or `null` if there were no yields. | Completes with `null`; yielded progress is not the task output.            |
 
 For default execution, an explicit `return null` also falls back to the last yield. Prefer an
 explicit object return when progress snapshots and the final result have different shapes.
 Progress snapshots are last-write-wins by tool call id and do not enter model history as
 intermediate tool results. A snapshot used as the final output does enter history as the tool result.
 
-This background workflow consumes an intermediate yield, then suspends until its timer expires:
+This background workflow publishes an intermediate progress snapshot, then suspends until its timer expires:
 
 ```ts title="agent/tools/remind_with_progress.ts"
 import { defineWorkflowTool } from "eve/tools";
@@ -457,7 +456,7 @@ export default defineWorkflowTool({
   execution: "background",
   async *execute({ note, delay }) {
     "use workflow";
-    yield { status: "preparing reminder" }; // Consumed without publishing progress in background mode.
+    yield { status: "preparing reminder" }; // Visible to session-stream clients; not sent to the model.
     await sleep(delay); // Durable suspension while the timer is pending.
     return { reminder: note }; // Task completion notification.
   },

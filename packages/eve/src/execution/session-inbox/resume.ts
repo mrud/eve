@@ -17,6 +17,7 @@ import {
   sessionInboxHookToken,
   type SessionInboxAddress,
 } from "#execution/session-inbox/address.js";
+import type { WorkflowToolRunReport } from "#execution/tools/workflow/messages.js";
 import { getHookByToken, resumeHook } from "#internal/workflow/runtime.js";
 import { isObject } from "#shared/guards.js";
 
@@ -67,6 +68,28 @@ export async function resumeSessionInbox(
         })());
       },
     };
+  }
+}
+
+/**
+ * Delivers a workflow report only to the current durable inbox. Older session
+ * owners cannot interpret reports, so this deliberately has no legacy route.
+ */
+export async function resumeSessionWorkflowReport(
+  address: string | SessionInboxAddress,
+  report: WorkflowToolRunReport,
+): Promise<void> {
+  const token = logicalToken(address);
+  const deadline = Date.now() + HANDOFF_RETRY_WINDOW_MS;
+  while (true) {
+    try {
+      await resumeHook(sessionInboxHookToken(token), { ...report, kind: "report" });
+      return;
+    } catch (error) {
+      if (!HookNotFoundError.is(error)) throw error;
+      if (await isHandoffInProgress(token, deadline)) continue;
+      throw error;
+    }
   }
 }
 

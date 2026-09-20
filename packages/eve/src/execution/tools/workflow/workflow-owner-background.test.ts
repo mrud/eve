@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   raceChannelReads: vi.fn(),
   resumeHookStep: vi.fn(),
   notifyTaskParent: vi.fn(),
+  notifyTaskParentWorkflowReport: vi.fn(),
   executeWorkflowBody: vi.fn(),
   sleep: vi.fn(),
 }));
@@ -38,6 +39,7 @@ vi.mock("#execution/tasks/child/notify.js", () => ({
   emitTaskActivityStep: mocks.emitTaskActivityStep,
   deliverTaskInputResponsesStep: mocks.deliverTaskInputResponsesStep,
   notifyTaskParent: mocks.notifyTaskParent,
+  notifyTaskParentWorkflowReport: mocks.notifyTaskParentWorkflowReport,
 }));
 vi.mock("#execution/tools/workflow/owner-channels.js", () => ({
   createChannelReader: mocks.createChannelReader,
@@ -385,7 +387,7 @@ describe("workflowToolRunWorkflow", () => {
   });
 
   it.each(["tool", "subagent"])(
-    "consumes %s progress and only forwards subagent updates",
+    "routes tool progress to the session stream and forwards subagent updates",
     async (kind) => {
       const report = {
         from: { ...bufferedAgentRequest.from, callId: "call-1" },
@@ -428,6 +430,10 @@ describe("workflowToolRunWorkflow", () => {
         });
         return;
       }
+      expect(mocks.notifyTaskParentWorkflowReport).toHaveBeenCalledExactlyOnceWith({
+        report,
+        token: "parent-token",
+      });
       expect(mocks.notifyTaskParent).toHaveBeenCalledTimes(1);
     },
   );

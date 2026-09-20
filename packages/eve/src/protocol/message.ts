@@ -339,8 +339,9 @@ export interface ActionResultStreamEvent {
 }
 
 /**
- * Stream event emitted for a preliminary snapshot from a locally executed
- * tool generator. The final snapshot is emitted as `action.result`.
+ * Stream event emitted for a preliminary snapshot from a tool generator.
+ * Background workflow snapshots do not start a parent-model turn. The final
+ * snapshot is emitted as `action.result` only for a non-background tool call.
  */
 export interface ActionPartialStreamEvent {
   data: {

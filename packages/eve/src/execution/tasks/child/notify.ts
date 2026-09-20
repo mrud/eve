@@ -1,7 +1,10 @@
 import type { ActivityObserverConfig, SessionAuthContext, SessionCommand } from "#channel/types.js";
 import { submitActivity } from "#execution/submit-activity.js";
 import { isTaskWorkflowTargetGone } from "#execution/tasks/workflow-target.js";
-import { resumeSessionInbox } from "#execution/session-inbox/resume.js";
+import {
+  resumeSessionInbox,
+  resumeSessionWorkflowReport,
+} from "#execution/session-inbox/resume.js";
 import { resumeWorkflowToolRunAnswers } from "#execution/tools/workflow/answer.js";
 import type { AnswerHookRoute } from "#harness/proxy-input-requests.js";
 import { createLogger } from "#internal/logging.js";
@@ -49,6 +52,23 @@ export async function notifyTaskParent(
     if (!isTaskWorkflowTargetGone(error)) throw error;
     log.warn("task notification target is gone; the parent session already ended", {
       taskDeliveryId: command.taskDeliveryId,
+    });
+  }
+}
+
+/** Delivers one background workflow report without starting a parent-model turn. */
+export async function notifyTaskParentWorkflowReport(input: {
+  readonly report: WorkflowToolRunReport;
+  readonly token: string;
+}): Promise<void> {
+  "use step";
+
+  try {
+    await resumeSessionWorkflowReport(input.token, input.report);
+  } catch (error) {
+    if (!isTaskWorkflowTargetGone(error)) throw error;
+    log.warn("task report target is gone; the parent session already ended", {
+      taskRunId: input.report.from.runId,
     });
   }
 }
