@@ -17,11 +17,14 @@ import {
 } from "#execution/session-inbox/address.js";
 import type { AgentInput } from "#tools/workflow-definition.js";
 import type { ToolContext } from "#tools/definition.js";
+import type { SandboxAttachment } from "#shared/sandbox-attachment.js";
+import { readSandboxAttachment } from "#shared/sandbox-attachment.js";
 
 export type InternalAgentInput = {
   readonly agentId?: string;
   readonly message: string;
   readonly outputSchema?: JsonObject;
+  readonly sandbox?: SandboxAttachment;
   readonly strictContinuation?: boolean;
   readonly target: string;
 };
@@ -68,6 +71,7 @@ export async function agent(
     agentId: input.agentId,
     message: input.message,
     outputSchema: input.outputSchema,
+    sandbox: input.sandbox,
     target,
   });
 }
@@ -84,6 +88,7 @@ export async function agentSession(
     agentId: input.agentId,
     message: input.message,
     outputSchema: input.outputSchema,
+    sandbox: input.sandbox,
     strictContinuation: true,
     target,
   });
@@ -240,5 +245,11 @@ export function validateAgentInput(input: InternalAgentInput): void {
       Array.isArray(input.outputSchema))
   ) {
     throw new TypeError("agent() `outputSchema` must be a JSON Schema object.");
+  }
+  if (input.sandbox !== undefined) {
+    readSandboxAttachment(input.sandbox);
+    if (input.agentId !== undefined) {
+      throw new TypeError("agent() `sandbox` can only be supplied when starting a child.");
+    }
   }
 }

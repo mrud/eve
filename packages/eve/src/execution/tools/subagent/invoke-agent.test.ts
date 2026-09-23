@@ -64,6 +64,17 @@ describe("agent invocation input", () => {
       }),
     ).toThrow("agent() `outputSchema` must be a JSON Schema object.");
   });
+
+  it("rejects a sandbox reference on a continuation", () => {
+    expect(() =>
+      validateAgentInput({
+        agentId: "child",
+        message: "Continue",
+        sandbox: { provider: "vercel", name: "scope" },
+        target: "agent",
+      }),
+    ).toThrow("only be supplied when starting a child");
+  });
 });
 
 describe("background agent invocation routing", () => {

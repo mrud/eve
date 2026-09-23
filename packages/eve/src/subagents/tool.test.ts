@@ -458,6 +458,37 @@ describe("buildSubagentRunInput", () => {
     });
   });
 
+  it("borrows an attached sandbox instead of the parent's sandbox for a root-agent copy", () => {
+    const session = { ...makeSession(), sandboxState: { session: null } };
+    const action: RuntimeSubagentDispatchRequest = {
+      ...makeAction(),
+      input: {
+        message: "Work",
+        sandbox: { provider: "vercel", name: "ace-au-scope" },
+      },
+      subagentName: "agent",
+    };
+    const { runInput } = buildRuntimeSubagentRunInput({
+      action,
+      auth: null,
+      initiatorAuth: null,
+      selfAgent: true,
+      session,
+      parent: makeParent(session, { id: "turn-0", sequence: 0 }),
+    });
+
+    expect(runInput.adapter.state).toMatchObject({
+      parentSandboxState: {
+        session: {
+          providerName: "vercel",
+          state: { sandboxName: "ace-au-scope", version: 3 },
+          stateProtocolVersion: 1,
+        },
+      },
+      sandboxSessionId: "ace-au-scope",
+    });
+  });
+
   it("carries parent sandbox state for declared subagents that opt into sharing", () => {
     const sandboxState = { initialized: true, session: null };
     const session = { ...makeSession(), sandboxState };

@@ -13,6 +13,7 @@ import type {
   RuntimeSubagentDispatchRequest,
 } from "#shared/action-types.js";
 import type { JsonObject } from "#shared/json.js";
+import { readSandboxAttachment } from "#shared/sandbox-attachment.js";
 import type { AgentInvocationRequest } from "#execution/tools/subagent/invoke-agent.js";
 import { BundleKey, type CompiledBundle } from "#runtime/sessions/runtime-context-keys.js";
 import { ROOT_RUNTIME_AGENT_NODE_ID } from "#runtime/graph.js";
@@ -165,6 +166,23 @@ function classifyFreshStart(input: {
 }): Extract<OwnerAgentDispatchPlanEntry, { kind: "reject" | "start" }> {
   const { action } = input;
   const registry = input.bundle.subagentRegistry.subagentsByNodeId;
+  const sandbox = readSandboxAttachment(action.input.sandbox);
+  if (sandbox !== undefined && !isRecursiveAgentAction(action, registry)) {
+    return {
+      kind: "reject",
+      result: {
+        callId: action.callId,
+        isError: true,
+        kind: "subagent-result",
+        origin: "dispatch",
+        output: {
+          code: "AGENT_SANDBOX_UNSUPPORTED",
+          message: "A sandbox attachment is available only for a new root-agent child.",
+        },
+        subagentName: getSubagentName(action),
+      },
+    };
+  }
   const isDynamicSubagent =
     input.bundle.subagentRegistry.dynamicNodeIds?.has(action.nodeId) === true;
   const dynamicSubagentSelection = isDynamicSubagent
@@ -236,6 +254,7 @@ function ownerPlanReusesSandbox(input: {
   return input.plan.some((entry) => {
     if (entry.kind !== "start" || entry.target.kind !== "local") return false;
     const action = entry.target.action;
+    if (action.input.sandbox !== undefined) return false;
     const isSelfDelegation =
       action.subagentName === "agent" &&
       !input.bundle.subagentRegistry.subagentsByNodeId.has(action.nodeId);
@@ -293,10 +312,12 @@ export function resolveAgentInvocationAction(input: {
     agentId?: string;
     message: string;
     outputSchema?: JsonObject;
+    sandbox?: AgentInvocationRequest["input"]["sandbox"];
     strictContinuation?: boolean;
   } = { message: input.input.message };
   if (input.input.agentId !== undefined) actionInput.agentId = input.input.agentId;
   if (input.input.outputSchema !== undefined) actionInput.outputSchema = input.input.outputSchema;
+  if (input.input.sandbox !== undefined) actionInput.sandbox = input.input.sandbox;
   if (input.input.strictContinuation === true) actionInput.strictContinuation = true;
   const common = {
     callId: input.invocationId,

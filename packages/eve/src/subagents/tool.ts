@@ -14,6 +14,7 @@ import type {
 } from "#channel/types.js";
 import type { HarnessSession } from "#harness/types.js";
 import type { RuntimeSubagentDispatchRequest } from "#shared/action-types.js";
+import { readSandboxAttachment } from "#shared/sandbox-attachment.js";
 import { mintSubagentContinuationToken } from "#execution/session.js";
 import { resolveRemainingSessionTokenLimits } from "#subagents/token-budget.js";
 import type { JsonObject } from "#shared/json.js";
@@ -126,7 +127,20 @@ export function buildSubagentRunInput(input: {
   const reusesOwnerSandbox =
     input.graph?.nodesByNodeId.get(action.nodeId)?.sandboxRegistry.sandbox?.definition.kind ===
       "parent" || input.selfAgent;
-  if (reusesOwnerSandbox) {
+  const attachment = readSandboxAttachment(action.input.sandbox);
+  if (attachment !== undefined) {
+    if (!input.selfAgent) {
+      throw new Error("A sandbox attachment is available only for a new root-agent child.");
+    }
+    adapterState.parentSandboxState = {
+      session: {
+        providerName: "vercel",
+        state: { sandboxName: attachment.name, version: 3 },
+        stateProtocolVersion: 1,
+      },
+    };
+    adapterState.sandboxSessionId = attachment.name;
+  } else if (reusesOwnerSandbox) {
     if (session.sandboxState !== undefined) {
       adapterState.parentSandboxState = session.sandboxState;
     }

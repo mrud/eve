@@ -4,6 +4,7 @@ import type {
 } from "#compiled/@standard-schema/spec/index.js";
 import type { Approval } from "#approval/definition.js";
 import type { JsonObject, JsonValue } from "#shared/json.js";
+import type { SandboxAttachment } from "#shared/sandbox-attachment.js";
 import {
   stampToolDefinition,
   type PublicToolDefinition,
@@ -23,6 +24,8 @@ export interface AgentInput {
   readonly agentId?: string;
   readonly message: string;
   readonly outputSchema?: JsonObject;
+  /** Borrow a named sandbox for a new root-agent child. Omit when continuing an agentId. */
+  readonly sandbox?: SandboxAttachment;
 }
 
 type JsonSchemaProperties = Readonly<Record<string, JsonObject>>;

@@ -359,8 +359,27 @@ return { first: first.output, second: second.output };
 Each call returns `{ agentId, output }` using the handle assigned by eve. Passing an unavailable
 `agentId` fails before a new child starts. The handle belongs to the owning session; it cannot
 continue a child from another session. `outputSchema` works as it does with `ctx.agent()` and
-types the `output` field. This method does not change the target's sandbox: a root copy still
-shares its parent's sandbox, and a declared subagent still uses its authored sandbox.
+types the `output` field.
+
+By default, a root copy shares its parent's sandbox and a declared subagent uses its authored
+sandbox. A workflow that owns an existing named Vercel Sandbox can attach a new root copy to it:
+
+```ts
+import { VercelSandbox } from "eve/sandbox/vercel";
+
+const first = await ctx.agentSession("agent", {
+  message: "Inspect the files in /workspace.",
+  sandbox: VercelSandbox.attach(sandboxName),
+});
+const second = await ctx.agentSession("agent", {
+  agentId: first.agentId,
+  message: "Continue with the files you inspected.",
+});
+```
+
+The named sandbox must already exist in the same Vercel project. The workflow owns its creation,
+access checks, stopping, and deletion. The child borrows it and stores its name for continuation.
+An attachment is accepted only when starting a root-agent copy; omit it on continuation.
 
 ### Route to a hidden subagent with Jev
 

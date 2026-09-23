@@ -12,6 +12,7 @@ import type {
 import type { SandboxEnvironment } from "#shared/sandbox-environment.js";
 import { defineSandboxProvider } from "#shared/sandbox-provider.js";
 import type { SandboxSession } from "#shared/sandbox-session.js";
+import type { SandboxAttachment } from "#shared/sandbox-attachment.js";
 
 export type VercelSandboxEnvironmentOptions = VercelSandboxCreateOptions & {
   readonly prepare?: (sandbox: SandboxSession) => Promise<void> | void;
@@ -51,6 +52,13 @@ export function createDefaultVercelEnvironment(
 
 export const VercelSandbox = {
   name: "vercel",
+  /** Reference an existing named sandbox without transferring ownership to the child. */
+  attach(name: string): SandboxAttachment {
+    if (typeof name !== "string" || name.trim() === "") {
+      throw new TypeError("VercelSandbox.attach() requires a non-empty sandbox name.");
+    }
+    return { provider: "vercel", name };
+  },
   environment(
     options?: VercelSandboxEnvironmentOptions,
   ): SandboxEnvironment<VercelSandboxRuntimeOptions, VercelSandboxSession> {

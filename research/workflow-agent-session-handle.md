@@ -26,8 +26,12 @@ Keep `ctx.agent` output-only for existing authored workflows. This is an
 additive step toward the broader context API proposed in the linked draft;
 that proposal's naming and tuple return are still under discussion.
 
-## Boundary
+## Scoped sandbox attachment
 
-This returns and validates child identity. It does not choose or attach a
-sandbox for the child. Applications that need a child to share a particular
-filesystem still need an explicit sandbox attachment contract.
+An authored workflow may start a root-agent copy with
+`sandbox: VercelSandbox.attach(name)`. The root child borrows the named sandbox;
+its Eve session persists the name for later `agentId` continuations. An
+attachment on a continuation or a declared specialist is rejected. The
+framework does not create or delete the attached sandbox. The application
+must verify that the requested name belongs to the caller's workflow scope,
+and stop and delete it at the right boundaries.

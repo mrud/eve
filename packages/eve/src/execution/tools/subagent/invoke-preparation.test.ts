@@ -24,6 +24,39 @@ function session(rootSessionId?: string) {
 }
 
 describe("planAgentDispatch", () => {
+  it("accepts a named sandbox only for a fresh root-agent copy", () => {
+    const sandbox = { provider: "vercel", name: "scope" };
+    const rootAction = {
+      ...localAction,
+      input: { message: "Work", sandbox },
+      name: "agent",
+      nodeId: "__root__",
+      subagentName: "agent",
+    };
+    const bundle = {
+      subagentRegistry: { subagentsByNodeId: new Map() },
+      turnAgent: {},
+    } as never;
+    expect(
+      planAgentDispatch({
+        action: rootAction,
+        bundle,
+        ctx: {} as never,
+        session: session() as never,
+      }),
+    ).toMatchObject({ kind: "start", target: { action: rootAction, kind: "local" } });
+    expect(
+      planAgentDispatch({
+        action: { ...localAction, input: { message: "Work", sandbox } },
+        bundle,
+        ctx: {} as never,
+        session: session() as never,
+      }),
+    ).toMatchObject({
+      kind: "reject",
+      result: { output: { code: "AGENT_SANDBOX_UNSUPPORTED" } },
+    });
+  });
   it("rejects recursive self-agent starts outside the root session", () => {
     expect(
       planAgentDispatch({
