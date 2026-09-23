@@ -75,6 +75,7 @@ describe("workflow-owned agent requests", () => {
         data: { callId: "nested", subagentName: "research", output: "done" },
       };
       vi.mocked(settleTaskAgentInvocationStep).mockResolvedValue({
+        agentId: "child",
         settled: true,
         completion,
         serializedContext: {},
@@ -103,7 +104,7 @@ describe("workflow-owned agent requests", () => {
         });
         expect(resumeHookStep).toHaveBeenCalledExactlyOnceWith(
           "reply",
-          { kind: "agent-settled", callId: "nested" },
+          { kind: "agent-settled", callId: "nested", agentId: "child" },
           { ifPresent: true },
         );
       }
@@ -165,5 +166,10 @@ describe("workflow-owned agent requests", () => {
       sessionState,
     });
     expect(applied.serializedContext).toBe(serializedContext);
+    expect(resumeHookStep).toHaveBeenCalledWith(
+      "reply",
+      { kind: "agent-dispatched", callId: "nested", agentId: "child" },
+      { ifPresent: true },
+    );
   });
 });

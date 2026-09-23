@@ -22,6 +22,7 @@ export type InternalAgentInput = {
   readonly agentId?: string;
   readonly message: string;
   readonly outputSchema?: JsonObject;
+  readonly strictContinuation?: boolean;
   readonly target: string;
 };
 
@@ -52,7 +53,8 @@ export type AgentInvocationEvent =
 export type AgentInvocationReply =
   | AgentInvocationEvent
   | RuntimeActionResultHookPayload
-  | { readonly kind: "agent-settled"; readonly callId: string };
+  | { readonly kind: "agent-dispatched"; readonly callId: string; readonly agentId: string }
+  | { readonly kind: "agent-settled"; readonly callId: string; readonly agentId?: string };
 
 /** Invokes an agent from a workflow tool. */
 export async function agent(
@@ -70,12 +72,39 @@ export async function agent(
   });
 }
 
+/** Returns the real child handle and refuses to replace a stale continuation. */
+export async function agentSession(
+  ctx: ToolContext,
+  target: string,
+  input: AgentInput,
+): Promise<{ readonly agentId: string; readonly output: JsonValue }> {
+  readWorkflowToolRunRef(ctx);
+  validateAgentInput({ ...input, target });
+  const result = await invokeAgentResult(ctx, {
+    agentId: input.agentId,
+    message: input.message,
+    outputSchema: input.outputSchema,
+    strictContinuation: true,
+    target,
+  });
+  if (!result.agentId) throw new Error(`Agent "${target}" did not return a continuation handle.`);
+  return { agentId: result.agentId, output: result.output };
+}
+
 /** Invokes an agent with a framework-selected replay-stable invocation id. */
 export async function invokeAgent(
   ctx: ToolContext,
   input: InternalAgentInput,
   options: { readonly invocationId?: string } = {},
 ): Promise<JsonValue> {
+  return (await invokeAgentResult(ctx, input, options)).output;
+}
+
+async function invokeAgentResult(
+  ctx: ToolContext,
+  input: InternalAgentInput,
+  options: { readonly invocationId?: string } = {},
+): Promise<{ readonly agentId?: string; readonly output: JsonValue }> {
   validateAgentInput(input);
   const run = readWorkflowToolRunRef(ctx);
   const owner = readWorkflowToolRunOwner(ctx);
@@ -90,16 +119,22 @@ export async function invokeAgent(
     });
 
     const iterator = replies[Symbol.asyncIterator]();
+    let dispatchedAgentId: string | undefined;
     while (true) {
       const next = await nextAgentReply(iterator, ctx.abortSignal);
       if (next.done) break;
       const reply = next.value;
+      if (reply.kind === "agent-dispatched") {
+        if (reply.callId === invocationId) dispatchedAgentId = reply.agentId;
+        continue;
+      }
       if (reply.kind === "runtime-action-result") {
         const result = reply.results.find(
           (candidate): candidate is RuntimeSubagentResult =>
             candidate.kind === "subagent-result" && candidate.callId === invocationId,
         );
         if (result !== undefined) {
+          let agentId = dispatchedAgentId;
           if (result.origin === "child") {
             await resumeHookStep(owner.inbox, {
               kind: "request",
@@ -112,15 +147,23 @@ export async function invokeAgent(
               const acknowledgement = await nextAgentReply(iterator, ctx.abortSignal);
               if (acknowledgement.done)
                 throw new Error(`Agent "${input.target}" closed before settlement.`);
+              if (acknowledgement.value.kind === "agent-dispatched") {
+                if (acknowledgement.value.callId === invocationId) {
+                  agentId = acknowledgement.value.agentId;
+                }
+                continue;
+              }
               if (
                 acknowledgement.value.kind === "agent-settled" &&
                 acknowledgement.value.callId === invocationId
-              )
+              ) {
+                agentId = acknowledgement.value.agentId ?? agentId;
                 break;
+              }
             }
           }
           if (result.isError === true) throw result.output;
-          return result.output;
+          return { agentId, output: result.output };
         }
         continue;
       }

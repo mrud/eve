@@ -4,6 +4,7 @@ import { ask, attachWorkflowToolRunContext } from "#execution/tools/workflow/ask
 import type { WorkflowToolRunRef } from "#execution/tools/workflow/messages.js";
 import {
   agent,
+  agentSession,
   type AgentInvocationReply,
   validateAgentInput,
 } from "#execution/tools/subagent/invoke-agent.js";
@@ -164,6 +165,58 @@ describe("background agent invocation routing", () => {
         input: { message: "Find it", outputSchema, target: "research" },
         invocationId: "call-1:agent-reply",
         kind: "agent-invoke",
+      },
+    });
+  });
+
+  it("returns the authoritative child handle for a strict workflow session", async () => {
+    const replies: AgentInvocationReply[] = [
+      { kind: "agent-dispatched", callId: "call-1:agent-reply", agentId: "child-1" },
+      {
+        kind: "runtime-action-result",
+        results: [
+          {
+            callId: "call-1:agent-reply",
+            kind: "subagent-result",
+            origin: "child",
+            output: { answer: 42 },
+            subagentName: "research",
+          } as never,
+        ],
+      },
+      { kind: "agent-settled", callId: "call-1:agent-reply" },
+    ];
+    mocks.createHook.mockReturnValue({
+      [Symbol.asyncIterator]: () => ({
+        next: async () =>
+          replies.length > 0
+            ? { done: false as const, value: replies.shift()! }
+            : { done: true as const, value: undefined },
+      }),
+      token: "agent-reply",
+    });
+    mocks.resumeHook.mockResolvedValue(undefined);
+    const ctx = { callId: "call-1" } as ToolContext;
+    attachWorkflowToolRunContext(ctx, {
+      from: {
+        callId: "call-1",
+        execution: "blocking",
+        input: {},
+        runId: "run-1",
+        sequence: 0,
+        stepIndex: 0,
+        toolName: "research",
+        turnId: "turn-1",
+      },
+      owner: { inbox: "owner-inbox" },
+    });
+
+    await expect(
+      agentSession(ctx, "research", { agentId: "child-1", message: "Continue" }),
+    ).resolves.toEqual({ agentId: "child-1", output: { answer: 42 } });
+    expect(mocks.resumeHook.mock.calls[0]?.[1]).toMatchObject({
+      request: {
+        input: { agentId: "child-1", strictContinuation: true, target: "research" },
       },
     });
   });

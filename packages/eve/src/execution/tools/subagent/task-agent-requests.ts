@@ -56,11 +56,12 @@ export async function applyTaskAgentRequest(
         serializedContext = emitted.serializedContext;
         sessionState = emitted.sessionState;
       }
-      await resumeHookStep(
-        delivery.replyTo,
-        { kind: "agent-settled", callId: request.result.callId },
-        { ifPresent: true },
-      );
+      const acknowledgement: { kind: "agent-settled"; callId: string; agentId?: string } = {
+        kind: "agent-settled",
+        callId: request.result.callId,
+      };
+      if (settled.agentId !== undefined) acknowledgement.agentId = settled.agentId;
+      await resumeHookStep(delivery.replyTo, acknowledgement, { ifPresent: true });
       return {
         serializedContext,
         sessionState,
@@ -77,12 +78,18 @@ export async function applyTaskAgentRequest(
       });
       switch (dispatched.kind) {
         case "dispatched": {
-          return await emitSubagentEventStep({
+          const emitted = await emitSubagentEventStep({
             event: dispatched.event,
             sessionWritable: ctx.sessionWritable,
             serializedContext: dispatched.serializedContext ?? ctx.serializedContext,
             sessionState: dispatched.sessionState,
           });
+          await resumeHookStep(
+            delivery.replyTo,
+            { kind: "agent-dispatched", callId: request.invocationId, agentId: dispatched.agentId },
+            { ifPresent: true },
+          );
+          return emitted;
         }
         case "failed":
           await resumeHookStep(delivery.replyTo, {

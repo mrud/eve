@@ -45,6 +45,8 @@ export function withWorkflowStepAuthorization(execute: (...args: never[]) => unk
           options: { abortSignal: input.abortSignal, toolCallId: input.callId },
         }),
         agent: () => unavailableInStep("ctx.agent()", "Call ctx.agent() in the workflow body."),
+        agentSession: () =>
+          unavailableInStep("ctx.agentSession()", "Call ctx.agentSession() in the workflow body."),
         ask: () => unavailableInStep("ctx.ask()", "Call ctx.ask() in the workflow body."),
         getToken: auth.getToken,
         requireAuth: auth.requireAuth,

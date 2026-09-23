@@ -113,6 +113,26 @@ export function planAgentDispatch(input: {
   const rawAgentId = input.action.input.agentId;
   const agentId =
     typeof rawAgentId === "string" && rawAgentId.trim() !== "" ? rawAgentId : undefined;
+  if (
+    input.action.input.strictContinuation === true &&
+    rawAgentId !== undefined &&
+    (agentId === undefined || !isAgentHandleAction(input.action) || !knownAgentIds.has(agentId))
+  ) {
+    return {
+      kind: "reject",
+      result: {
+        callId: input.action.callId,
+        isError: true,
+        kind: "subagent-result",
+        origin: "dispatch",
+        output: {
+          code: "AGENT_CONTINUATION_UNAVAILABLE",
+          message: "This agent is no longer available to continue.",
+        },
+        subagentName: getSubagentName(input.action),
+      },
+    };
+  }
   if (agentId !== undefined && isAgentHandleAction(input.action)) {
     if (knownAgentIds.has(agentId)) {
       const dynamicSubagentSelection =
@@ -273,9 +293,11 @@ export function resolveAgentInvocationAction(input: {
     agentId?: string;
     message: string;
     outputSchema?: JsonObject;
+    strictContinuation?: boolean;
   } = { message: input.input.message };
   if (input.input.agentId !== undefined) actionInput.agentId = input.input.agentId;
   if (input.input.outputSchema !== undefined) actionInput.outputSchema = input.input.outputSchema;
+  if (input.input.strictContinuation === true) actionInput.strictContinuation = true;
   const common = {
     callId: input.invocationId,
     description: definition.description ?? "",

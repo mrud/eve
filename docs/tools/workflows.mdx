@@ -343,6 +343,25 @@ The first argument is an available agent target. On the root agent, `"agent"` st
 continue an existing child. An inline `outputSchema` requires structured output and determines the
 return type, so `result` in the example is typed as `{ findings: string[] }`.
 
+When a workflow must continue the exact child in a later call, use `ctx.agentSession()`:
+
+```ts
+const first = await ctx.agentSession("reviewer", {
+  message: "Review the deployment plan.",
+});
+const second = await ctx.agentSession("reviewer", {
+  agentId: first.agentId,
+  message: "Check the revised plan.",
+});
+return { first: first.output, second: second.output };
+```
+
+Each call returns `{ agentId, output }` using the handle assigned by eve. Passing an unavailable
+`agentId` fails before a new child starts. The handle belongs to the owning session; it cannot
+continue a child from another session. `outputSchema` works as it does with `ctx.agent()` and
+types the `output` field. This method does not change the target's sandbox: a root copy still
+shares its parent's sandbox, and a declared subagent still uses its authored sandbox.
+
 ### Route to a hidden subagent with Jev
 
 Use an authored workflow tool when the parent model should decide to delegate, but [Jev](https://vercel.com/i/what-is-jev) should choose the specialist. Set `tool: false` on each specialist so the parent model sees only the routing tool. The specialists remain available through `ctx.agents` and callable through `ctx.agent()`.

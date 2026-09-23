@@ -86,6 +86,17 @@ interface WorkflowAgent {
   (target: string, input: AgentInput): Promise<JsonValue>;
 }
 
+interface WorkflowAgentSession {
+  <const TOutputSchema extends JsonObject>(
+    target: string,
+    input: AgentInput & { readonly outputSchema: TOutputSchema },
+  ): Promise<{ readonly agentId: string; readonly output: JsonSchemaOutput<TOutputSchema> }>;
+  (
+    target: string,
+    input: AgentInput,
+  ): Promise<{ readonly agentId: string; readonly output: JsonValue }>;
+}
+
 /**
  * Context supplied to a workflow tool body. When passed directly to a step,
  * eve replaces it with {@link WorkflowStepToolContext}.
@@ -96,6 +107,8 @@ export type WorkflowToolContext = Pick<
 > & {
   /** Invoke an agent by its invocation name. */
   agent: WorkflowAgent;
+  /** Start or strictly continue an agent and return its authoritative handle. */
+  agentSession: WorkflowAgentSession;
   /** Metadata for agents callable by this workflow, including hidden agents. */
   agents: Readonly<Record<string, WorkflowAgentMetadata>>;
   /** Ask the human on the session's channel; awaiting the answer suspends the run. */

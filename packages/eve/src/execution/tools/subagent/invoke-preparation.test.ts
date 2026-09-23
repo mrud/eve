@@ -76,4 +76,22 @@ describe("planAgentDispatch", () => {
       }),
     ).toMatchObject({ kind: "start", target: { action: localAction, kind: "local" } });
   });
+
+  it("rejects an unknown session handle before starting another child", () => {
+    expect(
+      planAgentDispatch({
+        action: {
+          ...localAction,
+          input: { agentId: "unknown", message: "Continue", strictContinuation: true },
+        },
+        bundle: { subagentRegistry: { subagentsByNodeId: new Map() }, turnAgent: {} } as never,
+        ctx: {} as never,
+        knownAgentIds: [],
+        session: session() as never,
+      }),
+    ).toMatchObject({
+      kind: "reject",
+      result: { output: { code: "AGENT_CONTINUATION_UNAVAILABLE" } },
+    });
+  });
 });

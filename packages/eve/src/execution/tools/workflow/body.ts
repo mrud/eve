@@ -1,7 +1,7 @@
 import { getWorkflowMetadata } from "#compiled/@workflow/core/index.js";
 
 import type { SessionContext } from "#context/session-context.js";
-import { agent } from "#execution/tools/subagent/invoke-agent.js";
+import { agent, agentSession } from "#execution/tools/subagent/invoke-agent.js";
 import type { AgentInput, WorkflowToolContext } from "#tools/workflow-definition.js";
 import { ask, attachWorkflowToolRunContext } from "#execution/tools/workflow/ask.js";
 import {
@@ -143,6 +143,8 @@ function createWorkflowBodyContext(
   const ctx: ToolContext & WorkflowToolContext = {
     agent: ((target: string, agentInput: AgentInput) =>
       agent(ctx, target, agentInput)) as WorkflowToolContext["agent"],
+    agentSession: ((target: string, agentInput: AgentInput) =>
+      agentSession(ctx, target, agentInput)) as WorkflowToolContext["agentSession"],
     agents: Object.freeze(
       Object.fromEntries(
         Object.entries(input.agents ?? {}).map(([name, metadata]) => [

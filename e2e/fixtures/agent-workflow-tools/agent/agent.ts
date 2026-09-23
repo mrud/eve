@@ -117,6 +117,7 @@ function respond(request: MockModelRequest): MockModelResponse | string {
     ["WORKFLOW-FANOUT-START", "fanout_deploy"],
     ["WORKFLOW-WEBHOOK-START", "webhook_deploy"],
     ["WORKFLOW-AGENT-FANOUT-START", "fanout_agents"],
+    ["WORKFLOW-AGENT-SESSION-START", "agent_session"],
   ] as const) {
     if (!message.includes(directive)) continue;
     const result = [...request.toolResults].reverse().find((entry) => entry.name === tool);

@@ -93,6 +93,12 @@ describe("workflow step authorization", () => {
       guidance: "Call ctx.agent() in the workflow body.",
     },
     {
+      access: (ctx: WorkflowToolContext) =>
+        ctx.agentSession("researcher", { message: "Investigate" }),
+      capability: "ctx.agentSession()",
+      guidance: "Call ctx.agentSession() in the workflow body.",
+    },
+    {
       access: (ctx: WorkflowToolContext) => ctx.ask({ prompt: "Continue?" }),
       capability: "ctx.ask()",
       guidance: "Call ctx.ask() in the workflow body.",

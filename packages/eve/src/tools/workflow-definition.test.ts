@@ -33,6 +33,17 @@ describe("defineWorkflowTool", () => {
           },
         });
         expectTypeOf(review).toEqualTypeOf<Promise<{ findings: string[]; score?: number }>>();
+        const session = ctx.agentSession("researcher", {
+          message: "Review the deployment.",
+          outputSchema: {
+            properties: { result: { type: "string" } },
+            required: ["result"],
+            type: "object",
+          },
+        });
+        expectTypeOf(session).toEqualTypeOf<
+          Promise<{ readonly agentId: string; readonly output: { result: string } }>
+        >();
         // @ts-expect-error The subagent name is the first argument, not part of the input.
         void ctx.agent({ message: "Review the deployment.", target: "researcher" });
         // Token capabilities are available when this context is passed into a step.

@@ -398,6 +398,7 @@ export async function settleTaskAgentInvocationStep(input: {
   readonly sessionState: DurableSessionState;
   readonly taskId?: string | undefined;
 }): Promise<{
+  readonly agentId?: string;
   readonly settled: boolean;
   readonly completion?: SubagentCompletedStreamEvent;
   readonly serializedContext: Record<string, unknown>;
@@ -487,6 +488,7 @@ export async function settleTaskAgentInvocationStep(input: {
           },
         };
   return {
+    agentId: handle.identity.id,
     settled: true,
     completion,
     serializedContext,
